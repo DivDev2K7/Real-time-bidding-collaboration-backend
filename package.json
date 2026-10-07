@@ -1,0 +1,11 @@
+{
+  "name": "live-auction",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Real-time auction backend: WebSockets + SQLite transactions",
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/server.js",
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.js"
+  }
+}

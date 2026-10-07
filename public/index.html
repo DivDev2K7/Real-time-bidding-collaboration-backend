@@ -1,0 +1,208 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Live auction</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #000;
+    --text: #f4f1e8;
+    --dim: rgba(244, 241, 232, .56);
+    --yellow: #f7d046;
+    --yellow-soft: rgba(247, 208, 70, .16);
+    --glass: rgba(255, 255, 255, .055);
+    --edge: rgba(255, 255, 255, .13);
+    --danger: #ff9d8a;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--ink); color: var(--text);
+    font: 15px/1.5 "DM Sans", system-ui, sans-serif;
+    display: grid; place-items: center; padding: 20px; overflow-x: hidden;
+    padding-top: max(20px, env(safe-area-inset-top)); padding-bottom: max(20px, env(safe-area-inset-bottom));
+  }
+  /* soft yellow light behind the glass: this is what the glass refracts */
+  .glow { position: fixed; border-radius: 50%; filter: blur(90px); pointer-events: none; z-index: 0; }
+  .glow.a { width: 380px; height: 380px; background: rgba(247, 208, 70, .34); top: -110px; right: -90px; animation: drift 26s ease-in-out infinite alternate; }
+  .glow.b { width: 320px; height: 320px; background: rgba(247, 208, 70, .13); bottom: -120px; left: -110px; }
+  @keyframes drift { to { transform: translate(-70px, 90px) scale(1.12); } }
+
+  main {
+    position: relative; z-index: 1; width: min(440px, 100%);
+    padding: 28px; border-radius: 32px;
+    background: linear-gradient(155deg, rgba(255,255,255,.10), rgba(255,255,255,.03) 45%, rgba(255,255,255,.05));
+    border: 1px solid var(--edge);
+    backdrop-filter: blur(28px) saturate(170%); -webkit-backdrop-filter: blur(28px) saturate(170%);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.28), inset 0 -1px 0 rgba(255,255,255,.04), 0 30px 80px rgba(0,0,0,.6);
+  }
+  header { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  h1 { font: 700 18px/1.2 "Bricolage Grotesque", system-ui, sans-serif; margin: 0; letter-spacing: -.01em; }
+  #status { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--dim); white-space: nowrap; }
+  #status i { width: 7px; height: 7px; border-radius: 50%; background: #555; transition: background .3s, box-shadow .3s; }
+  #status.live i { background: var(--yellow); box-shadow: 0 0 10px var(--yellow); }
+
+  .price { margin: 30px 0 4px; font: 700 clamp(46px, 14vw, 64px)/1 "Bricolage Grotesque", system-ui, sans-serif; letter-spacing: -.035em; transition: color .3s; }
+  .price small { font-size: .38em; color: var(--dim); font-weight: 500; letter-spacing: 0; margin-right: 4px; vertical-align: .62em; }
+  .price.flash { animation: flash .9s ease-out; }
+  @keyframes flash { 0% { color: var(--yellow); text-shadow: 0 0 36px rgba(247,208,70,.7); } 100% { color: var(--text); text-shadow: 0 0 0 transparent; } }
+  .closed .price { color: var(--dim); }
+
+  .meta { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 24px; }
+  .chip { padding: 5px 12px; border-radius: 99px; font-size: 13px; color: var(--dim);
+          background: var(--glass); border: 1px solid var(--edge); }
+  .chip.you { color: #1a1500; background: var(--yellow); border-color: transparent; font-weight: 500; }
+
+  .row { display: flex; gap: 8px; }
+  .row.top { margin-bottom: 8px; }
+  input {
+    flex: 1; min-width: 0; font: inherit; color: var(--text); padding: 13px 16px; border-radius: 18px;
+    background: rgba(0,0,0,.35); border: 1px solid var(--edge);
+    box-shadow: inset 0 1px 3px rgba(0,0,0,.5); outline: none; transition: border-color .2s, box-shadow .2s;
+  }
+  input::placeholder { color: rgba(244,241,232,.34); }
+  input:focus-visible { border-color: rgba(247,208,70,.7); box-shadow: 0 0 0 3px var(--yellow-soft); }
+  #name { flex: .8; }
+  button { font: inherit; cursor: pointer; border: 0; }
+  #go {
+    padding: 0 22px; border-radius: 18px; font-weight: 500; color: #1a1500;
+    background: linear-gradient(180deg, #ffe27a, var(--yellow));
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.7), 0 8px 24px rgba(247,208,70,.25);
+    transition: transform .15s, box-shadow .2s, opacity .2s;
+  }
+  #go:hover { box-shadow: inset 0 1px 0 rgba(255,255,255,.7), 0 10px 32px rgba(247,208,70,.4); }
+  #go:active { transform: scale(.97); }
+  #go:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+  #go:disabled { opacity: .35; cursor: not-allowed; box-shadow: none; }
+  #quick { margin: 10px 0 0; }
+  #quick button { padding: 6px 13px; border-radius: 99px; font-size: 13px; color: var(--text);
+                  background: var(--glass); border: 1px solid var(--edge); transition: background .2s, border-color .2s; }
+  #quick button:hover { background: var(--yellow-soft); border-color: rgba(247,208,70,.45); }
+  #quick button:focus-visible { outline: 2px solid var(--yellow); outline-offset: 2px; }
+  #msg { min-height: 22px; margin: 12px 2px 0; font-size: 13.5px; color: var(--danger); }
+
+  .bids { margin-top: 10px; padding: 6px 4px; border-radius: 22px; background: rgba(0,0,0,.28); border: 1px solid rgba(255,255,255,.07); max-height: 210px; overflow-y: auto; }
+  .bids:empty::before { content: "No bids yet. Be the first."; display: block; padding: 18px; text-align: center; color: var(--dim); }
+  .bid { display: flex; justify-content: space-between; padding: 9px 14px; border-radius: 14px; }
+  .bid:first-child { background: var(--yellow-soft); }
+  .bid span:last-child { font-weight: 500; font-variant-numeric: tabular-nums; }
+  .bid.new { animation: slide .35s ease-out; }
+  @keyframes slide { from { opacity: 0; transform: translateY(-8px); } }
+  .bids::-webkit-scrollbar { width: 0; }
+
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+
+<div class="glow a"></div><div class="glow b"></div>
+<main id="card">
+  <header><h1 id="title">Loading…</h1><div id="status"><i></i><span>Connecting</span></div></header>
+  <div class="price" id="price">–</div>
+  <div class="meta"><span class="chip" id="who">No bids yet</span><span class="chip" id="time"></span></div>
+  <div class="row top"><input id="name" placeholder="Your name" maxlength="40" autocomplete="nickname"><input id="amt" type="number" inputmode="decimal" step="0.01" placeholder="Your bid"></div>
+  <div class="row"><button id="go">Place bid</button></div>
+  <div id="quick" class="row"></div>
+  <div id="msg" aria-live="polite"></div>
+  <div class="bids" id="bids"></div>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let auctionId, state = null, bids = [], ws, backoff = 500;
+const pending = new Map();           // msgId -> bid message, resent after reconnect
+const money = (c) => (c / 100).toFixed(2);
+const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+
+async function init() {
+  auctionId = new URLSearchParams(location.search).get('a') ?? (await (await fetch('/api/auctions')).json())[0]?.id;
+  try { $('name').value = localStorage.getItem('bidder') ?? ''; } catch {}
+  connect();
+}
+
+function setStatus(live) {
+  $('status').className = live ? 'live' : '';
+  $('status').lastChild.textContent = live ? 'Live' : 'Reconnecting…';
+}
+
+function connect() {
+  ws = new WebSocket(`${location.protocol === 'https:' ? 'wss' : 'ws'}://${location.host}/ws`);
+  ws.onopen = () => {
+    backoff = 500; setStatus(true);
+    ws.send(JSON.stringify({ type: 'subscribe', auctionId }));        // full snapshot = source of truth
+    for (const m of pending.values()) ws.send(JSON.stringify(m));      // idempotent resend
+  };
+  ws.onmessage = (e) => handle(JSON.parse(e.data));
+  ws.onclose = () => {
+    setStatus(false);
+    setTimeout(connect, backoff + Math.random() * 250);
+    backoff = Math.min(backoff * 2, 8000);
+  };
+}
+
+function handle(m) {
+  let isNewBid = false;
+  if (m.type === 'snapshot') { state = m.auction; bids = m.bids; }
+  else if (m.type === 'update') {
+    if (m.auction.version <= state.version) return;                    // stale/duplicate
+    if (m.auction.version > state.version + 1) {                       // gap: missed events -> resync
+      return ws.send(JSON.stringify({ type: 'subscribe', auctionId }));
+    }
+    state = m.auction;
+    if (m.bid) { bids.unshift(m.bid); isNewBid = true; }
+  } else if (m.type === 'ack') {
+    pending.delete(m.msgId);
+    $('msg').textContent = m.ok ? '' : ({
+      TOO_LOW: `Bid too low. Minimum is ${money(m.minAcceptable)}.`,
+      ALREADY_HIGHEST: "You're already the highest bidder.",
+      AUCTION_CLOSED: 'This auction has ended.',
+    }[m.reason] ?? 'Something went wrong. Try again.');
+    if (m.ok) $('amt').value = '';
+    return;
+  } else return;
+  render(isNewBid);
+}
+
+function render(isNewBid) {
+  $('title').textContent = state.title;
+  const p = $('price');
+  p.innerHTML = state.currentBid == null
+    ? `<small>Starts at</small>${money(state.startPrice)}`
+    : money(state.currentBid);
+  if (isNewBid) { p.classList.remove('flash'); void p.offsetWidth; p.classList.add('flash'); }
+  const me = $('name').value.trim();
+  const who = $('who');
+  who.className = 'chip' + (me && state.currentBidder === me ? ' you' : '');
+  who.textContent = !state.currentBidder ? 'No bids yet'
+    : me && state.currentBidder === me ? "You're in the lead" : `${state.currentBidder} is leading`;
+  $('card').classList.toggle('closed', state.status === 'closed');
+  $('go').disabled = state.status === 'closed';
+  $('amt').placeholder = `${money(state.minNextBid)} or more`;
+  $('quick').innerHTML = state.status === 'closed' ? '' : [0, 1, 2].map((k) =>
+    `<button data-a="${state.minNextBid + k * state.minIncrement}">${money(state.minNextBid + k * state.minIncrement)}</button>`).join('');
+  $('bids').innerHTML = bids.map((b, i) =>
+    `<div class="bid${isNewBid && i === 0 ? ' new' : ''}"><span>${esc(b.bidder)}</span><span>${money(b.amount)}</span></div>`).join('');
+}
+
+setInterval(() => {
+  if (!state) return;
+  const s = Math.max(0, Math.round((state.endsAt - Date.now()) / 1000));
+  $('time').textContent = state.status === 'closed' ? 'Ended'
+    : `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')} left`;
+}, 500);
+
+$('quick').onclick = (e) => { const a = e.target.dataset?.a; if (a) { $('amt').value = money(Number(a)); $('amt').focus(); } };
+$('name').oninput = () => state && render(false);
+$('amt').onkeydown = (e) => { if (e.key === 'Enter') $('go').click(); };
+
+$('go').onclick = () => {
+  const bidder = $('name').value.trim(), amount = Math.round(parseFloat($('amt').value) * 100);
+  if (!bidder || !Number.isSafeInteger(amount) || amount <= 0) return ($('msg').textContent = 'Enter your name and a bid amount.');
+  try { localStorage.setItem('bidder', bidder); } catch {}
+  const m = { type: 'bid', auctionId, bidder, amount, msgId: crypto.randomUUID() };
+  pending.set(m.msgId, m);
+  $('msg').textContent = '';
+  if (ws.readyState === 1) ws.send(JSON.stringify(m));                 // else sent on reconnect
+};
+init();
+</script>
